@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-500: #4F46E5;
+  --color-primary-600: #4338CA;
+  --color-violet-500: #7C3AED;
+  --color-accent-500: #10B981;
+  --color-bg-dark: #0F0F1A;
+  --color-surface: #1A1A2E;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #94A3B8;
+
+  --animate-fade-in-up: fade-in-up 0.4s ease-out forwards;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out forwards;
+  --animate-shimmer: shimmer 2s infinite linear;
+  --animate-pulse-glow: pulse-glow 2s infinite;
+
+  @keyframes fade-in-up {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-in-right {
+    0% {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 15px rgba(79, 70, 229, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 25px rgba(124, 58, 237, 0.7);
+    }
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl;
+  }
+  
+  .glass-input {
+    @apply bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-500 to-violet-500 text-white font-medium px-6 py-2 rounded-full hover:scale-[1.03] hover:shadow-[0_0_15px_rgba(79,70,229,0.5)] active:scale-[0.97] transition-all disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply bg-white/10 text-white font-medium px-6 py-2 rounded-full hover:bg-white/20 hover:scale-[1.03] active:scale-[0.97] transition-all disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .skeleton {
+    @apply bg-white/10 bg-gradient-to-r from-white/5 via-white/10 to-white/5 bg-[length:1000px_100%] animate-shimmer rounded;
+  }
+}
+
+body {
+  @apply bg-bg-dark text-text-primary min-h-screen font-sans antialiased;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-bg-dark;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-white/20 rounded-full hover:bg-white/30;
+}
