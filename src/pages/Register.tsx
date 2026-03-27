@@ -40,9 +40,14 @@ export function Register() {
         videoRef.current.srcObject = stream;
         setIsStreaming(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Camera error:", err);
-      toast("Camera permission denied or not available.", "error");
+      if (err.name === 'NotAllowedError') {
+        toast("Camera permission denied. Please allow camera access in your browser settings and try again.", "error");
+      } else {
+        toast("Camera not available or in use by another application.", "error");
+      }
+      setIsStreaming(false);
     }
   };
 
@@ -63,6 +68,8 @@ export function Register() {
     const drawOverlay = async () => {
       if (videoRef.current && canvasRef.current && !videoRef.current.paused) {
         const detection = await detectFace(videoRef.current);
+        if (!videoRef.current || !canvasRef.current) return;
+        
         const canvas = canvasRef.current;
         const displaySize = { width: videoRef.current.videoWidth, height: videoRef.current.videoHeight };
         
@@ -120,6 +127,7 @@ export function Register() {
     setIsCapturing(true);
     try {
       const detection = await detectFace(videoRef.current);
+      if (!videoRef.current) return;
       
       if (!detection) {
         toast("No face detected. Please look directly at the camera.", "warning");
@@ -165,16 +173,7 @@ export function Register() {
         registeredAt: Date.now()
       }, capturedImages[0]);
 
-      // Auto-mark attendance
-      await markAttendance(
-        formData.studentId,
-        formData.name,
-        formData.course,
-        1.0, // 100% confidence for registration
-        'Auto (Registration)'
-      );
-
-      toast("Student registered & marked present successfully!", "success");
+      toast("Student registered successfully!", "success");
       
       // Reset form
       setFormData({ name: '', studentId: '', email: '', course: '', semester: '' });
@@ -211,6 +210,13 @@ export function Register() {
             ref={canvasRef} 
             className="absolute inset-0 w-full h-full z-10 pointer-events-none"
           />
+          
+          {isCapturing && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-30 backdrop-blur-sm rounded-xl">
+              <RefreshCw className="w-8 h-8 text-primary-500 animate-spin mb-4" />
+              <p className="text-white font-medium">Processing Face Data...</p>
+            </div>
+          )}
           
           {!isStreaming && isLoaded && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary">
@@ -320,7 +326,7 @@ export function Register() {
               className="btn-primary w-full py-3 text-lg flex items-center justify-center gap-2"
             >
               {isSubmitting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
-              {isSubmitting ? 'Registering...' : 'Register Student'}
+              {isSubmitting ? 'Processing & Registering...' : 'Register Student'}
             </button>
           </div>
         </form>

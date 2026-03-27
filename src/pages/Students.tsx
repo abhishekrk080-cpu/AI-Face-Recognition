@@ -64,10 +64,18 @@ export function Students() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="h-10 w-48 skeleton"></div>
-        <div className="h-20 w-full skeleton"></div>
-        <div className="h-[400px] w-full skeleton"></div>
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-8 w-64 skeleton"></div>
+            <div className="h-4 w-96 skeleton"></div>
+          </div>
+          <div className="flex gap-4">
+            <div className="h-10 w-64 skeleton rounded-xl"></div>
+            <div className="h-10 w-40 skeleton rounded-xl"></div>
+          </div>
+        </div>
+        <div className="h-[500px] w-full skeleton rounded-2xl"></div>
       </div>
     );
   }

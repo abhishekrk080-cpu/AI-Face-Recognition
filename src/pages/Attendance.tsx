@@ -17,14 +17,12 @@ export function Attendance() {
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [markedToday, setMarkedToday] = useState<Set<string>>(new Set());
-  const [presentCount, setPresentCount] = useState(0);
 
   // Initialize markedToday from existing records
   useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
     const todayRecords = records.filter(r => r.date === today && r.status === 'Present');
     setMarkedToday(new Set(todayRecords.map(r => r.studentId)));
-    setPresentCount(todayRecords.length);
   }, [records]);
 
   // Create FaceMatcher
@@ -76,6 +74,8 @@ export function Attendance() {
     const runDetection = async () => {
       if (videoRef.current && canvasRef.current && !videoRef.current.paused) {
         const detections = await detectAllFaces(videoRef.current);
+        if (!videoRef.current || !canvasRef.current) return;
+        
         const canvas = canvasRef.current;
         const displaySize = { width: videoRef.current.videoWidth, height: videoRef.current.videoHeight };
         
@@ -145,6 +145,14 @@ export function Attendance() {
                 
                 if (res.success) {
                   toast(`${student.name} marked present!`, 'success');
+                } else {
+                  if (res.message !== 'Already marked present today') {
+                    setMarkedToday(prev => {
+                      const newSet = new Set(prev);
+                      newSet.delete(studentId);
+                      return newSet;
+                    });
+                  }
                 }
               } catch (err) {
                 // Revert local state on failure
@@ -172,16 +180,33 @@ export function Attendance() {
       return;
     }
     
+    setMarkedToday(prev => new Set(prev).add(student.studentId));
+    
     try {
-      await markAttendance(
+      const res = await markAttendance(
         student.studentId,
         student.name,
         student.course,
         1.0,
         'Manual Override'
       );
-      toast(`${student.name} manually marked present`, 'success');
+      if (res.success) {
+        toast(`${student.name} manually marked present`, 'success');
+      } else {
+        if (res.message !== 'Already marked present today') {
+          setMarkedToday(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(student.studentId);
+            return newSet;
+          });
+        }
+      }
     } catch (err) {
+      setMarkedToday(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(student.studentId);
+        return newSet;
+      });
       toast(`Failed to mark ${student.name}`, 'error');
     }
   };
@@ -199,7 +224,7 @@ export function Attendance() {
           </div>
           <div>
             <p className="text-sm text-text-secondary font-medium">Present Today</p>
-            <p className="text-2xl font-bold text-white">{presentCount} <span className="text-sm font-normal text-text-secondary">/ {students.length}</span></p>
+            <p className="text-2xl font-bold text-white">{markedToday.size} <span className="text-sm font-normal text-text-secondary">/ {students.length}</span></p>
           </div>
         </div>
       </div>

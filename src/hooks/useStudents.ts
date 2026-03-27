@@ -5,11 +5,33 @@ import { db, storage } from '../firebase';
 import { Student } from '../types';
 import { COLLECTIONS } from '../constants';
 
+// Helper to check if Firebase is configured
+const isFirebaseConfigured = () => {
+  return db.app.options.apiKey !== "YOUR_API_KEY" && db.app.options.apiKey !== undefined;
+};
+
 export function useStudents() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isFirebaseConfigured()) {
+      // Local Storage Fallback
+      const localData = localStorage.getItem(COLLECTIONS.STUDENTS);
+      if (localData) {
+        setStudents(JSON.parse(localData));
+      }
+      setLoading(false);
+      
+      // Listen for local storage changes from other tabs
+      const handleStorageChange = () => {
+        const updatedData = localStorage.getItem(COLLECTIONS.STUDENTS);
+        if (updatedData) setStudents(JSON.parse(updatedData));
+      };
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
+    }
+
     const q = query(collection(db, COLLECTIONS.STUDENTS));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
@@ -27,6 +49,26 @@ export function useStudents() {
   }, []);
 
   const addStudent = async (studentData: Omit<Student, 'id' | 'photoURL'>, photoBase64: string) => {
+    if (!isFirebaseConfigured()) {
+      // Local Storage Fallback
+      const currentStudents = JSON.parse(localStorage.getItem(COLLECTIONS.STUDENTS) || '[]');
+      if (currentStudents.some((s: Student) => s.studentId === studentData.studentId)) {
+        throw new Error('Student ID already exists');
+      }
+      
+      const newStudent: Student = {
+        ...studentData,
+        id: Math.random().toString(36).substring(2, 9),
+        photoURL: photoBase64 // Store base64 directly in local storage for demo
+      };
+      
+      const updatedStudents = [...currentStudents, newStudent];
+      localStorage.setItem(COLLECTIONS.STUDENTS, JSON.stringify(updatedStudents));
+      setStudents(updatedStudents);
+      window.dispatchEvent(new Event('storage'));
+      return newStudent.id;
+    }
+
     try {
       // Check for duplicate student ID
       const q = query(collection(db, COLLECTIONS.STUDENTS), where('studentId', '==', studentData.studentId));
@@ -54,6 +96,15 @@ export function useStudents() {
   };
 
   const updateStudent = async (id: string, data: Partial<Student>) => {
+    if (!isFirebaseConfigured()) {
+      const currentStudents = JSON.parse(localStorage.getItem(COLLECTIONS.STUDENTS) || '[]');
+      const updatedStudents = currentStudents.map((s: Student) => s.id === id ? { ...s, ...data } : s);
+      localStorage.setItem(COLLECTIONS.STUDENTS, JSON.stringify(updatedStudents));
+      setStudents(updatedStudents);
+      window.dispatchEvent(new Event('storage'));
+      return;
+    }
+
     try {
       const docRef = doc(db, COLLECTIONS.STUDENTS, id);
       await updateDoc(docRef, data);
@@ -64,19 +115,26 @@ export function useStudents() {
   };
 
   const deleteStudent = async (id: string, photoURL: string) => {
+    if (!isFirebaseConfigured()) {
+      const currentStudents = JSON.parse(localStorage.getItem(COLLECTIONS.STUDENTS) || '[]');
+      const updatedStudents = currentStudents.filter((s: Student) => s.id !== id);
+      localStorage.setItem(COLLECTIONS.STUDENTS, JSON.stringify(updatedStudents));
+      setStudents(updatedStudents);
+      window.dispatchEvent(new Event('storage'));
+      return;
+    }
+
     try {
       // Delete from Firestore
       await deleteDoc(doc(db, COLLECTIONS.STUDENTS, id));
       
       // Delete from Storage
-      if (photoURL) {
+      if (photoURL && photoURL.startsWith('http')) {
         try {
-          // Extract path from URL - this is a simple approach, might need refinement based on exact URL format
           const storageRef = ref(storage, photoURL);
           await deleteObject(storageRef);
         } catch (storageErr) {
           console.error("Error deleting photo from storage:", storageErr);
-          // Continue even if storage delete fails
         }
       }
     } catch (error) {

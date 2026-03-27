@@ -190,19 +190,19 @@ export function Export() {
             </p>
             <button 
               onClick={exportDetailedCSV}
-              disabled={isExporting || filteredRecords.length === 0}
+              disabled={isExporting || filteredRecords.length === 0 || loading}
               className="btn-primary w-full flex items-center justify-center gap-2 py-2.5"
             >
               {isExporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-              Detailed CSV
+              {isExporting ? 'Exporting...' : 'Detailed CSV'}
             </button>
             <button 
               onClick={exportSummaryCSV}
-              disabled={isExporting || filteredRecords.length === 0}
+              disabled={isExporting || filteredRecords.length === 0 || loading}
               className="btn-secondary w-full flex items-center justify-center gap-2 py-2.5 bg-white/5 border border-white/10"
             >
               {isExporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Summary CSV
+              {isExporting ? 'Exporting...' : 'Summary CSV'}
             </button>
           </div>
         </div>
@@ -216,8 +216,9 @@ export function Export() {
           
           <div className="flex-1 overflow-auto">
             {loading ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center justify-center h-full space-y-4">
                 <RefreshCw className="w-8 h-8 text-primary-500 animate-spin" />
+                <p className="text-text-secondary">Loading records...</p>
               </div>
             ) : filteredRecords.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-text-secondary">

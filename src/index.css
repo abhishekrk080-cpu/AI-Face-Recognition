@@ -11,8 +11,6 @@
   --color-text-secondary: #94A3B8;
 
   --animate-fade-in-up: fade-in-up 0.4s ease-out forwards;
-  --animate-slide-in-right: slide-in-right 0.3s ease-out forwards;
-  --animate-shimmer: shimmer 2s infinite linear;
   --animate-pulse-glow: pulse-glow 2s infinite;
 
   @keyframes fade-in-up {
@@ -23,26 +21,6 @@
     100% {
       opacity: 1;
       transform: translateY(0);
-    }
-  }
-
-  @keyframes slide-in-right {
-    0% {
-      opacity: 0;
-      transform: translateX(100%);
-    }
-    100% {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-
-  @keyframes shimmer {
-    0% {
-      background-position: -1000px 0;
-    }
-    100% {
-      background-position: 1000px 0;
     }
   }
 
@@ -74,7 +52,18 @@
   }
 
   .skeleton {
-    @apply bg-white/10 bg-gradient-to-r from-white/5 via-white/10 to-white/5 bg-[length:1000px_100%] animate-shimmer rounded;
+    @apply bg-white/5 relative overflow-hidden rounded-xl;
+  }
+  
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_1.5s_infinite];
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
 
