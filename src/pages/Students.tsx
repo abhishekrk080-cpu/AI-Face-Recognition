@@ -88,8 +88,8 @@ export function Students() {
           <p className="text-text-secondary">Manage registered students and view their attendance history.</p>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+          <div className="relative w-full sm:w-auto">
             <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input 
               type="text" 
@@ -99,10 +99,10 @@ export function Students() {
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Filter className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <select 
-              className="glass-input pl-10 appearance-none bg-surface"
+              className="glass-input pl-10 appearance-none bg-surface w-full"
               value={courseFilter}
               onChange={e => setCourseFilter(e.target.value)}
             >
@@ -213,8 +213,8 @@ export function Students() {
                 <div className="flex-1 w-full">
                   {isEditing ? (
                     <form onSubmit={handleUpdate} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1 col-span-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1 sm:col-span-2">
                           <label className="text-xs text-text-secondary">Name</label>
                           <input type="text" className="glass-input w-full py-1.5" value={editData.name ?? selectedStudent.name} onChange={e => setEditData({...editData, name: e.target.value})} />
                         </div>
@@ -248,7 +248,7 @@ export function Students() {
                         </button>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-y-3 gap-x-6 mt-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6 mt-4">
                         <div className="flex items-center gap-2 text-sm text-text-secondary">
                           <User className="w-4 h-4" />
                           <span className="text-white">{selectedStudent.studentId}</span>

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useFaceDetection } from '../hooks/useFaceDetection';
 import { useStudents } from '../hooks/useStudents';
 import { useAttendance } from '../hooks/useAttendance';
 import { useToast } from '../components/Toast';
-import { Camera, RefreshCw, Users, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { Camera, RefreshCw, Users, CheckCircle, AlertCircle, XCircle, Edit2, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
@@ -12,17 +12,28 @@ export function Attendance() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { isLoaded, detectAllFaces, faceapi } = useFaceDetection();
   const { students, loading: studentsLoading } = useStudents();
-  const { records, markAttendance } = useAttendance();
+  const { records, markAttendance, deleteAttendance, editAttendance } = useAttendance();
   const { toast } = useToast();
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [markedToday, setMarkedToday] = useState<Set<string>>(new Set());
+  const markedTodayRef = useRef<Set<string>>(new Set());
+  
+  // Edit Modal State
+  const [editingStudent, setEditingStudent] = useState<typeof students[0] | null>(null);
+  const [editStatus, setEditStatus] = useState<'Present' | 'Absent'>('Present');
+  const [editMethod, setEditMethod] = useState<'Face Recognition' | 'Manual Override'>('Manual Override');
+
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const isInitializingRef = useRef(false);
 
   // Initialize markedToday from existing records
   useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
     const todayRecords = records.filter(r => r.date === today && r.status === 'Present');
-    setMarkedToday(new Set(todayRecords.map(r => r.studentId)));
+    const newSet = new Set(todayRecords.map(r => r.studentId));
+    setMarkedToday(newSet);
+    markedTodayRef.current = newSet;
   }, [records]);
 
   // Create FaceMatcher
@@ -45,15 +56,31 @@ export function Attendance() {
   }, []);
 
   const startCamera = async () => {
+    if (isInitializingRef.current) return;
+    isInitializingRef.current = true;
+    setCameraError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setIsStreaming(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Camera error:", err);
-      toast("Camera permission denied or not available.", "error");
+      let message = "Camera not available or in use by another application.";
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        message = "Camera permission denied. Please allow camera access in your browser settings and try again.";
+        setCameraError('permission');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        message = "No camera found on this device.";
+        setCameraError('not-found');
+      } else {
+        setCameraError('other');
+      }
+      toast(message, "error");
+      setIsStreaming(false);
+    } finally {
+      isInitializingRef.current = false;
     }
   };
 
@@ -132,7 +159,10 @@ export function Attendance() {
             // Mark attendance
             if (!isUnknown && student && !isAlreadyMarked) {
               // Add to local set immediately to prevent spam
-              setMarkedToday(prev => new Set(prev).add(studentId));
+              const newSet = new Set(markedTodayRef.current);
+              newSet.add(studentId);
+              markedTodayRef.current = newSet;
+              setMarkedToday(newSet);
               
               try {
                 const res = await markAttendance(
@@ -147,20 +177,18 @@ export function Attendance() {
                   toast(`${student.name} marked present!`, 'success');
                 } else {
                   if (res.message !== 'Already marked present today') {
-                    setMarkedToday(prev => {
-                      const newSet = new Set(prev);
-                      newSet.delete(studentId);
-                      return newSet;
-                    });
+                    const revertedSet = new Set(markedTodayRef.current);
+                    revertedSet.delete(studentId);
+                    markedTodayRef.current = revertedSet;
+                    setMarkedToday(revertedSet);
                   }
                 }
               } catch (err) {
                 // Revert local state on failure
-                setMarkedToday(prev => {
-                  const newSet = new Set(prev);
-                  newSet.delete(studentId);
-                  return newSet;
-                });
+                const revertedSet = new Set(markedTodayRef.current);
+                revertedSet.delete(studentId);
+                markedTodayRef.current = revertedSet;
+                setMarkedToday(revertedSet);
                 toast(`Failed to mark ${student.name}`, 'error');
               }
             }
@@ -172,15 +200,18 @@ export function Attendance() {
     // Run every 300ms
     intervalId = setInterval(runDetection, 300);
     return () => clearInterval(intervalId);
-  }, [isStreaming, isLoaded, faceMatcher, students, markedToday, markAttendance, toast, faceapi, detectAllFaces]);
+  }, [isStreaming, isLoaded, faceMatcher, students, markAttendance, toast, faceapi, detectAllFaces]);
 
   const handleManualOverride = async (student: typeof students[0]) => {
-    if (markedToday.has(student.studentId)) {
+    if (markedTodayRef.current.has(student.studentId)) {
       toast(`${student.name} is already marked present today`, 'warning');
       return;
     }
     
-    setMarkedToday(prev => new Set(prev).add(student.studentId));
+    const newSet = new Set(markedTodayRef.current);
+    newSet.add(student.studentId);
+    markedTodayRef.current = newSet;
+    setMarkedToday(newSet);
     
     try {
       const res = await markAttendance(
@@ -194,32 +225,139 @@ export function Attendance() {
         toast(`${student.name} manually marked present`, 'success');
       } else {
         if (res.message !== 'Already marked present today') {
-          setMarkedToday(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(student.studentId);
-            return newSet;
-          });
+          const revertedSet = new Set(markedTodayRef.current);
+          revertedSet.delete(student.studentId);
+          markedTodayRef.current = revertedSet;
+          setMarkedToday(revertedSet);
         }
       }
     } catch (err) {
-      setMarkedToday(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(student.studentId);
-        return newSet;
-      });
+      const revertedSet = new Set(markedTodayRef.current);
+      revertedSet.delete(student.studentId);
+      markedTodayRef.current = revertedSet;
+      setMarkedToday(revertedSet);
       toast(`Failed to mark ${student.name}`, 'error');
+    }
+  };
+
+  const handleDeleteAttendance = async (e: React.MouseEvent, student: typeof students[0]) => {
+    e.stopPropagation(); // Prevent triggering manual override
+    
+    if (!markedTodayRef.current.has(student.studentId)) {
+      return;
+    }
+    
+    if (!window.confirm(`Are you sure you want to delete the attendance record for ${student.name}?`)) {
+      return;
+    }
+    
+    // Optimistically remove from markedToday
+    const newSet = new Set(markedTodayRef.current);
+    newSet.delete(student.studentId);
+    markedTodayRef.current = newSet;
+    setMarkedToday(newSet);
+    
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const res = await deleteAttendance(student.studentId, today);
+      
+      if (res.success) {
+        toast(`${student.name}'s attendance deleted`, 'success');
+      } else {
+        // Revert on failure
+        const revertedSet = new Set(markedTodayRef.current);
+        revertedSet.add(student.studentId);
+        markedTodayRef.current = revertedSet;
+        setMarkedToday(revertedSet);
+        toast(`Failed to delete attendance: ${res.message}`, 'error');
+      }
+    } catch (err) {
+      // Revert on failure
+      const revertedSet = new Set(markedTodayRef.current);
+      revertedSet.add(student.studentId);
+      markedTodayRef.current = revertedSet;
+      setMarkedToday(revertedSet);
+      toast(`Failed to delete attendance for ${student.name}`, 'error');
+    }
+  };
+
+  const handleEditClick = (e: React.MouseEvent, student: typeof students[0]) => {
+    e.stopPropagation();
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const record = records.find(r => r.studentId === student.studentId && r.date === today);
+    
+    if (record) {
+      setEditStatus(record.status as 'Present' | 'Absent');
+      setEditMethod(record.method as 'Face Recognition' | 'Manual Override');
+    } else {
+      setEditStatus('Present');
+      setEditMethod('Manual Override');
+    }
+    setEditingStudent(student);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingStudent) return;
+
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const isCurrentlyPresent = markedTodayRef.current.has(editingStudent.studentId);
+    
+    try {
+      if (editStatus === 'Absent' && isCurrentlyPresent) {
+        // If changing to Absent, update the record
+        await editAttendance(editingStudent.studentId, today, { status: 'Absent', method: editMethod });
+        const newSet = new Set(markedTodayRef.current);
+        newSet.delete(editingStudent.studentId);
+        markedTodayRef.current = newSet;
+        setMarkedToday(newSet);
+        toast(`Attendance for ${editingStudent.name} changed to Absent`, 'success');
+      } else if (editStatus === 'Absent' && !isCurrentlyPresent) {
+        // If marking absent and not currently present
+        await markAttendance(
+          editingStudent.studentId,
+          editingStudent.name,
+          editingStudent.course,
+          1.0,
+          editMethod,
+          'Absent'
+        );
+        toast(`Attendance for ${editingStudent.name} marked as Absent`, 'success');
+      } else if (editStatus === 'Present' && !isCurrentlyPresent) {
+        // If changing to Present from Absent, create a new record
+        await markAttendance(
+          editingStudent.studentId,
+          editingStudent.name,
+          editingStudent.course,
+          1.0,
+          editMethod,
+          'Present'
+        );
+        const newSet = new Set(markedTodayRef.current);
+        newSet.add(editingStudent.studentId);
+        markedTodayRef.current = newSet;
+        setMarkedToday(newSet);
+        toast(`Attendance for ${editingStudent.name} changed to Present`, 'success');
+      } else if (editStatus === 'Present' && isCurrentlyPresent) {
+         // If already present, just update the method
+         await editAttendance(editingStudent.studentId, today, { method: editMethod });
+         toast(`Attendance method for ${editingStudent.name} updated`, 'success');
+      }
+      
+      setEditingStudent(null);
+    } catch (err) {
+      toast(`Failed to update attendance for ${editingStudent.name}`, 'error');
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold">Live Attendance</h2>
           <p className="text-text-secondary">{format(new Date(), 'EEEE, MMMM do, yyyy')}</p>
         </div>
-        <div className="glass-card px-6 py-3 flex items-center gap-4 border-primary-500/30">
-          <div className="p-2 bg-primary-500/20 rounded-lg text-primary-400">
+        <div className="glass-card px-6 py-3 flex items-center gap-4 border-primary-500/30 w-full sm:w-auto">
+          <div className="p-2 bg-primary-500/20 rounded-lg text-primary-400 shrink-0">
             <Users className="w-6 h-6" />
           </div>
           <div>
@@ -255,16 +393,30 @@ export function Attendance() {
           />
           
           {!isStreaming && isLoaded && !studentsLoading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary">
-              <Camera className="w-12 h-12 mb-4 opacity-50" />
-              <p>Camera is off</p>
-              <button onClick={startCamera} className="mt-4 btn-secondary text-sm">Start Camera</button>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary p-6 text-center">
+              {cameraError === 'permission' ? (
+                <>
+                  <XCircle className="w-12 h-12 mb-4 text-red-500" />
+                  <p className="text-white font-medium mb-2">Camera Permission Denied</p>
+                  <p className="text-sm max-w-xs">Please allow camera access in your browser settings, then click retry below.</p>
+                  <button onClick={startCamera} className="mt-6 btn-primary text-sm flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    Retry Camera
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-12 h-12 mb-4 opacity-50" />
+                  <p>Camera is off</p>
+                  <button onClick={startCamera} className="mt-4 btn-secondary text-sm">Start Camera</button>
+                </>
+              )}
             </div>
           )}
         </div>
 
         {/* Manual Override / Status Section */}
-        <div className="glass-card p-6 flex flex-col h-[500px]">
+        <div className="glass-card p-6 flex flex-col min-h-[400px] lg:h-[500px]">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-emerald-400" />
             Manual Override
@@ -282,15 +434,14 @@ export function Attendance() {
               students.map(student => {
                 const isPresent = markedToday.has(student.studentId);
                 return (
-                  <button
+                  <div
                     key={student.id}
-                    onClick={() => handleManualOverride(student)}
-                    disabled={isPresent}
+                    onClick={() => !isPresent && handleManualOverride(student)}
                     className={cn(
-                      "w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left",
+                      "w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left group",
                       isPresent 
-                        ? "bg-emerald-500/10 border-emerald-500/20 opacity-70 cursor-not-allowed" 
-                        : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                        ? "bg-emerald-500/10 border-emerald-500/20" 
+                        : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 cursor-pointer"
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -305,17 +456,95 @@ export function Attendance() {
                       </div>
                     </div>
                     {isPresent ? (
-                      <CheckCircle className="w-5 h-5 text-emerald-400" />
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={(e) => handleEditClick(e, student)}
+                          className="p-1.5 rounded-full hover:bg-primary-500/20 text-text-secondary hover:text-primary-400 transition-colors"
+                          title="Edit Attendance"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={(e) => handleDeleteAttendance(e, student)}
+                          className="p-1.5 rounded-full hover:bg-red-500/20 text-emerald-400 hover:text-red-400 transition-colors"
+                          title="Delete Attendance"
+                        >
+                          <CheckCircle className="w-5 h-5 group-hover:hidden" />
+                          <Trash2 className="w-5 h-5 hidden group-hover:block" />
+                        </button>
+                      </div>
                     ) : (
                       <XCircle className="w-5 h-5 text-red-400 opacity-50" />
                     )}
-                  </button>
+                  </div>
                 );
               })
             )}
           </div>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-semibold mb-4 text-white">Edit Attendance</h3>
+            
+            <div className="flex items-center gap-4 mb-6 p-4 bg-white/5 rounded-xl border border-white/10">
+              <img 
+                src={editingStudent.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${editingStudent.name}`} 
+                alt={editingStudent.name} 
+                className="w-12 h-12 rounded-full object-cover bg-surface"
+              />
+              <div>
+                <p className="font-medium text-white">{editingStudent.name}</p>
+                <p className="text-sm text-text-secondary">{editingStudent.studentId}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Status</label>
+                <select 
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as 'Present' | 'Absent')}
+                  className="w-full bg-bg-dark border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500 transition-colors"
+                >
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Method</label>
+                <select 
+                  value={editMethod}
+                  onChange={(e) => setEditMethod(e.target.value as 'Face Recognition' | 'Manual Override')}
+                  className="w-full bg-bg-dark border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary-500 transition-colors"
+                >
+                  <option value="Face Recognition">Face Recognition</option>
+                  <option value="Manual Override">Manual Override</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setEditingStudent(null)}
+                className="px-4 py-2 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveEdit}
+                className="btn-primary py-2 px-6"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

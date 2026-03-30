@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as faceapi from '@vladmandic/face-api';
+import { useNotifications } from './useNotifications';
 
 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
 
@@ -7,6 +8,7 @@ export function useFaceDetection() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const { addNotification } = useNotifications();
 
   useEffect(() => {
     let mounted = true;
@@ -29,6 +31,11 @@ export function useFaceDetection() {
       } catch (err) {
         console.error("Error loading face-api models:", err);
         if (mounted) setError("Failed to load AI models. Please check your internet connection.");
+        addNotification({
+          title: 'System Error',
+          message: 'Failed to load face detection models. Please check your internet connection and reload.',
+          type: 'error'
+        });
       }
     };
     loadModels();

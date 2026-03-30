@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { 
   UserPlus, 
@@ -11,14 +11,20 @@ import {
   Bell, 
   Moon, 
   Sun,
-  ScanFace
+  ScanFace,
+  History,
+  AlertCircle,
+  Info,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
+import { useNotifications } from '../hooks/useNotifications';
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/attendance', label: 'Live Attendance', icon: Camera },
+  { path: '/records', label: 'Attendance Records', icon: History },
   { path: '/register', label: 'Register Student', icon: UserPlus },
   { path: '/students', label: 'Students', icon: Users },
   { path: '/export', label: 'Export & Reports', icon: Download },
@@ -28,11 +34,25 @@ export function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const location = useLocation();
+  const notificationsRef = useRef<HTMLDivElement>(null);
+
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const toggleTheme = () => {
@@ -114,10 +134,92 @@ export function Layout() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="p-2 text-text-secondary hover:text-white transition-colors relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent-500 rounded-full animate-pulse-glow"></span>
-            </button>
+            <div className="relative" ref={notificationsRef}>
+              <button 
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                className="p-2 text-text-secondary hover:text-white transition-colors relative"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white animate-pulse-glow">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notifications Dropdown */}
+              {isNotificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-surface border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade-in-up origin-top-right">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+                    <h3 className="font-semibold text-white">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={() => markAllAsRead()}
+                        className="text-xs text-primary-400 hover:text-primary-300 transition-colors flex items-center gap-1"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="max-h-[400px] overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-text-secondary">
+                        <Bell className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                        <p>No notifications yet</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-white/5">
+                        {notifications.map((notif) => (
+                          <div 
+                            key={notif.id} 
+                            className={cn(
+                              "p-4 transition-colors hover:bg-white/5 cursor-pointer flex gap-3",
+                              !notif.read ? "bg-primary-500/5" : ""
+                            )}
+                            onClick={() => {
+                              if (!notif.read && notif.id) markAsRead(notif.id);
+                            }}
+                          >
+                            <div className={cn(
+                              "mt-0.5 p-2 rounded-full h-fit",
+                              notif.type === 'alert' ? "bg-red-500/20 text-red-400" :
+                              notif.type === 'error' ? "bg-amber-500/20 text-amber-400" :
+                              "bg-primary-500/20 text-primary-400"
+                            )}>
+                              {notif.type === 'alert' ? <AlertCircle className="w-4 h-4" /> :
+                               notif.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
+                               <Info className="w-4 h-4" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start mb-1">
+                                <p className={cn(
+                                  "text-sm font-medium truncate pr-2",
+                                  !notif.read ? "text-white" : "text-text-secondary"
+                                )}>
+                                  {notif.title}
+                                </p>
+                                <span className="text-[10px] text-text-secondary whitespace-nowrap">
+                                  {formatDistanceToNow(notif.createdAt, { addSuffix: true })}
+                                </span>
+                              </div>
+                              <p className="text-xs text-text-secondary line-clamp-2">
+                                {notif.message}
+                              </p>
+                            </div>
+                            {!notif.read && (
+                              <div className="w-2 h-2 rounded-full bg-primary-500 mt-1.5 shrink-0" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <button onClick={toggleTheme} className="p-2 text-text-secondary hover:text-white transition-colors">
               {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>

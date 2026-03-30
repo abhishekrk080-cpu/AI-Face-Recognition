@@ -1,18 +1,15 @@
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, addDoc, doc, deleteDoc, updateDoc, getDocs, where } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '../firebase';
+import { db, storage, isFirebaseConfigured } from '../firebase';
 import { Student } from '../types';
 import { COLLECTIONS } from '../constants';
-
-// Helper to check if Firebase is configured
-const isFirebaseConfigured = () => {
-  return db.app.options.apiKey !== "YOUR_API_KEY" && db.app.options.apiKey !== undefined;
-};
+import { useNotifications } from './useNotifications';
 
 export function useStudents() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const { addNotification } = useNotifications();
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
@@ -43,6 +40,11 @@ export function useStudents() {
     }, (error) => {
       console.error("Error fetching students:", error);
       setLoading(false);
+      addNotification({
+        title: 'System Error',
+        message: `Failed to fetch students: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
     });
 
     return () => unsubscribe();
@@ -91,6 +93,11 @@ export function useStudents() {
       return docRef.id;
     } catch (error) {
       console.error("Error adding student:", error);
+      addNotification({
+        title: 'System Error',
+        message: `Failed to add student: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
       throw error;
     }
   };
@@ -110,6 +117,11 @@ export function useStudents() {
       await updateDoc(docRef, data);
     } catch (error) {
       console.error("Error updating student:", error);
+      addNotification({
+        title: 'System Error',
+        message: `Failed to update student: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
       throw error;
     }
   };
@@ -139,6 +151,11 @@ export function useStudents() {
       }
     } catch (error) {
       console.error("Error deleting student:", error);
+      addNotification({
+        title: 'System Error',
+        message: `Failed to delete student: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
       throw error;
     }
   };

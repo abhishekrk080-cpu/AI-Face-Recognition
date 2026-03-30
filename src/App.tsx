@@ -10,6 +10,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Register } from './pages/Register';
 import { Attendance } from './pages/Attendance';
 import { Students } from './pages/Students';
+import { Records } from './pages/Records';
 import { Export } from './pages/Export';
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="register" element={<Register />} />
             <Route path="attendance" element={<Attendance />} />
+            <Route path="records" element={<Records />} />
             <Route path="students" element={<Students />} />
             <Route path="export" element={<Export />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

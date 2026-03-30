@@ -3,7 +3,7 @@ import { useFaceDetection } from '../hooks/useFaceDetection';
 import { useStudents } from '../hooks/useStudents';
 import { useAttendance } from '../hooks/useAttendance';
 import { useToast } from '../components/Toast';
-import { Camera, RefreshCw, CheckCircle, AlertCircle, UserPlus } from 'lucide-react';
+import { Camera, RefreshCw, CheckCircle, AlertCircle, UserPlus, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function Register() {
@@ -28,12 +28,18 @@ export function Register() {
   const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const isInitializingRef = useRef(false);
+
   useEffect(() => {
     startCamera();
     return () => stopCamera();
   }, []);
 
   const startCamera = async () => {
+    if (isInitializingRef.current) return;
+    isInitializingRef.current = true;
+    setCameraError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       if (videoRef.current) {
@@ -42,12 +48,20 @@ export function Register() {
       }
     } catch (err: any) {
       console.error("Camera error:", err);
-      if (err.name === 'NotAllowedError') {
-        toast("Camera permission denied. Please allow camera access in your browser settings and try again.", "error");
+      let message = "Camera not available or in use by another application.";
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        message = "Camera permission denied. Please allow camera access in your browser settings and try again.";
+        setCameraError('permission');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        message = "No camera found on this device.";
+        setCameraError('not-found');
       } else {
-        toast("Camera not available or in use by another application.", "error");
+        setCameraError('other');
       }
+      toast(message, "error");
       setIsStreaming(false);
+    } finally {
+      isInitializingRef.current = false;
     }
   };
 
@@ -211,18 +225,27 @@ export function Register() {
             className="absolute inset-0 w-full h-full z-10 pointer-events-none"
           />
           
-          {isCapturing && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-30 backdrop-blur-sm rounded-xl">
-              <RefreshCw className="w-8 h-8 text-primary-500 animate-spin mb-4" />
-              <p className="text-white font-medium">Processing Face Data...</p>
-            </div>
-          )}
+          {/* Removed the inline isCapturing overlay since we have a full screen one now */}
           
           {!isStreaming && isLoaded && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary">
-              <Camera className="w-12 h-12 mb-4 opacity-50" />
-              <p>Camera is off</p>
-              <button onClick={startCamera} className="mt-4 btn-secondary text-sm">Start Camera</button>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary p-6 text-center">
+              {cameraError === 'permission' ? (
+                <>
+                  <XCircle className="w-12 h-12 mb-4 text-red-500" />
+                  <p className="text-white font-medium mb-2">Camera Permission Denied</p>
+                  <p className="text-sm max-w-xs">Please click the camera icon in your browser's address bar to allow access, then click retry below.</p>
+                  <button onClick={startCamera} className="mt-6 btn-primary text-sm flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    Retry Camera
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-12 h-12 mb-4 opacity-50" />
+                  <p>Camera is off</p>
+                  <button onClick={startCamera} className="mt-4 btn-secondary text-sm">Start Camera</button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -253,12 +276,23 @@ export function Register() {
         </div>
       </div>
 
+      {/* Full screen processing overlay */}
+      {(isCapturing || isSubmitting) && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-bg-dark/80 backdrop-blur-md">
+          <RefreshCw className="w-12 h-12 text-primary-500 animate-spin mb-6" />
+          <p className="text-2xl font-semibold text-white mb-2">Processing...</p>
+          <p className="text-text-secondary">
+            {isCapturing ? 'Computing face descriptor...' : 'Uploading student data to Firebase...'}
+          </p>
+        </div>
+      )}
+
       {/* Form Section */}
       <div className="glass-card p-6 lg:p-8">
         <h2 className="text-2xl font-semibold mb-6">Student Details</h2>
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-2 col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="space-y-2 sm:col-span-2">
               <label className="text-sm font-medium text-text-secondary">Full Name</label>
               <input 
                 required

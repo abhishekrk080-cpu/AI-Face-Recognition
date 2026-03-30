@@ -22,3 +22,13 @@ export interface AttendanceRecord {
   method: 'Face Recognition' | 'Auto (Registration)' | 'Manual Override';
   timestamp: number;
 }
+
+export interface Notification {
+  id?: string;
+  title: string;
+  message: string;
+  type: 'alert' | 'info' | 'error';
+  read: boolean;
+  createdAt: number;
+  studentId?: string;
+}

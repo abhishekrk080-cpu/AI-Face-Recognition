@@ -208,7 +208,7 @@ export function Export() {
         </div>
 
         {/* Preview Table */}
-        <div className="glass-card lg:col-span-3 overflow-hidden flex flex-col h-[600px]">
+        <div className="glass-card lg:col-span-3 overflow-hidden flex flex-col min-h-[400px] lg:h-[600px]">
           <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
             <h3 className="font-semibold">Data Preview</h3>
             <span className="text-xs text-text-secondary px-2 py-1 rounded bg-white/10">Showing up to 100 rows</span>
