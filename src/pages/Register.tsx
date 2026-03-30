@@ -29,6 +29,12 @@ export function Register() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [registeredStudent, setRegisteredStudent] = useState<{
+    name: string;
+    studentId: string;
+    course: string;
+    photoURL: string;
+  } | null>(null);
   const isInitializingRef = useRef(false);
 
   useEffect(() => {
@@ -177,7 +183,7 @@ export function Register() {
 
     setIsSubmitting(true);
     try {
-      const studentId = await addStudent({
+      const studentData = {
         name: formData.name,
         studentId: formData.studentId,
         email: formData.email,
@@ -185,10 +191,18 @@ export function Register() {
         semester: formData.semester,
         faceDescriptor: Array.from(faceDescriptor), // Convert Float32Array to standard array for Firestore
         registeredAt: Date.now()
-      }, capturedImages[0]);
+      };
+      const studentId = await addStudent(studentData, capturedImages[0]);
 
       toast("Student registered successfully!", "success");
       
+      setRegisteredStudent({
+        name: studentData.name,
+        studentId: studentData.studentId,
+        course: studentData.course,
+        photoURL: capturedImages[0]
+      });
+
       // Reset form
       setFormData({ name: '', studentId: '', email: '', course: '', semester: '' });
       setFaceDescriptor(null);
@@ -199,6 +213,45 @@ export function Register() {
       setIsSubmitting(false);
     }
   };
+
+  if (registeredStudent) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in-up">
+        <div className="glass-card p-8 max-w-md w-full text-center space-y-6">
+          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto">
+            <CheckCircle className="w-10 h-10 text-emerald-500" />
+          </div>
+          
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">Registration Successful!</h2>
+            <p className="text-text-secondary">
+              {registeredStudent.name} has been added to the system.
+            </p>
+          </div>
+
+          <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-4">
+            <img 
+              src={registeredStudent.photoURL} 
+              alt={registeredStudent.name} 
+              className="w-32 h-32 object-cover rounded-full mx-auto border-4 border-white/10"
+            />
+            <div>
+              <p className="font-medium text-white text-lg">{registeredStudent.name}</p>
+              <p className="text-sm text-text-secondary">{registeredStudent.studentId}</p>
+              <p className="text-sm text-text-secondary">{registeredStudent.course}</p>
+            </div>
+          </div>
+
+          <button 
+            onClick={() => setRegisteredStudent(null)}
+            className="btn-primary w-full"
+          >
+            Register Another Student
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid lg:grid-cols-2 gap-8">

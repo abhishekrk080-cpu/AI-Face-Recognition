@@ -14,6 +14,13 @@ export function Records() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [courseFilter, setCourseFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const courses = useMemo(() => {
+    const uniqueCourses = new Set(students.map(s => s.course));
+    return Array.from(uniqueCourses);
+  }, [students]);
 
   // Edit Modal State
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
@@ -30,6 +37,14 @@ export function Records() {
       filtered = filtered.filter(r => r.date === dateFilter);
     }
 
+    if (courseFilter) {
+      filtered = filtered.filter(r => r.course === courseFilter);
+    }
+
+    if (statusFilter) {
+      filtered = filtered.filter(r => r.status === statusFilter);
+    }
+
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
       filtered = filtered.filter(r => 
@@ -40,7 +55,7 @@ export function Records() {
     }
 
     return filtered;
-  }, [records, searchTerm, dateFilter]);
+  }, [records, searchTerm, dateFilter, courseFilter, statusFilter]);
 
   const handleDeleteClick = (record: AttendanceRecord) => {
     setRecordToDelete(record);
@@ -96,8 +111,8 @@ export function Records() {
         </div>
       </div>
 
-      <div className="glass-card p-4 flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="glass-card p-4 flex flex-col sm:flex-row gap-4 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
           <input 
             type="text" 
@@ -107,7 +122,30 @@ export function Records() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="relative sm:w-64">
+        <div className="relative sm:w-48">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
+          <select 
+            className="glass-input w-full pl-10 appearance-none bg-surface"
+            value={courseFilter}
+            onChange={(e) => setCourseFilter(e.target.value)}
+          >
+            <option value="">All Courses</option>
+            {courses.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="relative sm:w-48">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
+          <select 
+            className="glass-input w-full pl-10 appearance-none bg-surface"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            <option value="Present">Present</option>
+            <option value="Absent">Absent</option>
+          </select>
+        </div>
+        <div className="relative sm:w-48">
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
           <input 
             type="date" 
